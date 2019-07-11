@@ -15,7 +15,12 @@ soln = Function(W)
 nu = Constant(1.)
 
 F = div(w)*p*dx - nu*inner(grad(w), grad(u))*dx - phi*div(u)*dx
-solve(F == 0, soln)
+bc = DirichletBC(W.sub(0), Constant((1., 0.)), 2)
+
+solve(F == 0, soln, bcs=bc)
+
 u_out, p_out = soln.split()
 plot(p_out)
+plt.show()
+plot(u_out)
 plt.show()
