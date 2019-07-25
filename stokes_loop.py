@@ -71,10 +71,8 @@ nullspace = MixedVectorSpaceBasis(W, [W.sub(0), VectorSpaceBasis(constant=True)]
 soln.assign(0)
 solve(a == L, soln, bcs=bcs, nullspace=nullspace, solver_parameters=parameters)
 
-u_out, p_out = split(soln)
-
+u_out, p_out = soln.split()
 ## for plotting
-#u_out, p_out = soln.split()
 #plot(u_out)
 #plot(p_out)
 
@@ -82,7 +80,7 @@ u_out, p_out = split(soln)
 epsilon = sym(grad(u_out))
 eta = (A*inner(epsilon, epsilon))**(-1/3)
 tau = eta * epsilon
-#print(type(epsilon), type(eta), type(tau))
+print(type(epsilon), type(eta), type(tau))
 
 ## now solve Stokes by replacing the Newton viscosity by tau = eta * sym(u)
 # similar set up as before
@@ -114,35 +112,35 @@ def nonnewton_stokes_solver(eta, n=16, L=1):
     soln.assign(0)
     solve(a == L, soln, bcs=bcs, nullspace=nullspace, solver_parameters=parameters)
 
-    u_out, p_out = split(soln)
-    #u_out, p_out = soln.split()
+    u_out1, p_out1 = split(soln) # for updating tau
+    u_out2, p_out2 = soln.split() # for plotting
 
-    return u_out, p_out
+    return u_out1, p_out1, u_out2, p_out2
 
 # try the function
-#u_out, p_out = nonnewton_stokes_solver(2)
+u_out1, p_out1, u_out2, p_out2 = nonnewton_stokes_solver(eta)
 
 ## keep updating tau until converge
-max_iter = 5
-tolerance = 0.1
-i = 0
-diff_eta = 1
-
-while i < max_iter and diff_eta > tolerance:
-    # solve for u and p
-    u_out, p_out = nonnewton_stokes_solver(eta)
-    # compute epsilon
-    epsilon = sym(grad(u_out))
-    # compute eta
-    eta_new = (A*inner(epsilon,epsilon))**(-1/3)
-    # update tau
-    tau = eta * epsilon
-    # update iteration criteria
-    i += 1
-    diff_eta = norms.errornorm(eta_new-eta, eta_new-eta) # not sure 
-    eta = eta_new
-   
-print(i) # check number of iterations
-print(diff_tau)
+#max_iter = 5
+#tolerance = 0.1
+#i = 0
+#diff_eta = 1
+#
+#while i < max_iter and diff_eta > tolerance:
+#    # solve for u and p
+#    u_out, p_out = nonnewton_stokes_solver(eta)
+#    # compute epsilon
+#    epsilon = sym(grad(u_out))
+#    # compute eta
+#    eta_new = (A*inner(epsilon,epsilon))**(-1/3)
+#    # update tau
+#    tau = eta * epsilon
+#    # update iteration criteria
+#    i += 1
+#    diff_eta = norms.errornorm(eta_new-eta, eta_new-eta) # not sure 
+#    eta = eta_new
+#   
+#print(i) # check number of iterations
+#print(diff_tau)
     
 
