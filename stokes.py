@@ -19,7 +19,7 @@ nu = Constant(1.)
 # tau  = grad(u)
 
 Newtonian=False
-pointsolve=True
+pointsolve=False
 if Newtonian:
     F = div(w)*p*dx - nu*inner(grad(w), tau)*dx - phi*div(u)*dx + inner(z, tau)*dx - inner(z, grad(u))*dx
 else:
@@ -35,7 +35,7 @@ bcs = [DirichletBC(W.sub(0), Constant((0., 0.)), 1),
 solve(F == 0, soln, bcs=bcs)
 
 u_out, p_out, tau_out = soln.split()
-plot(p_out)
-plt.show()
 plot(u_out)
+plt.show()
+plot(p_out)
 plt.show()
