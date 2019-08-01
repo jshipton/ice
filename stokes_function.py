@@ -10,7 +10,6 @@ def ice_solve(n=16, L=1, Newtonian=False, pointsolve=False):
     x, y = SpatialCoordinate(mesh)
     
     # function spaces
-    V0 = FunctionSpace(mesh,"CG",3)
     V1 = VectorFunctionSpace(mesh, "CG", 2) # velocity
     V2 = FunctionSpace(mesh, "CG", 1) # pressure
     V3 = TensorFunctionSpace(mesh, "DG", 0) # stress tensor
