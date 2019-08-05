@@ -36,7 +36,7 @@ def ice_solve(n=n, L=L, Newtonian=False, pointsolve=False):
         
     # Newtonian or not
     if Newtonian: # tau = nu*grad(u)
-        F = div(w)*p*dx - nu*inner(grad(w), tau)*dx - phi*div(u)*dx + inner(z, tau)*dx - inner(z, grad(u))*dx
+        F = div(w)*p*dx - nu*inner(grad(w), grad(u))*dx - phi*div(u)*dx + inner(z, tau)*dx - inner(z, grad(u))*dx
         # should nu be in front of inner(z, grad(u))? 
     else:
         if pointsolve:
@@ -44,7 +44,7 @@ def ice_solve(n=n, L=L, Newtonian=False, pointsolve=False):
             tau = ps(sym(grad(u)), function_space=V3, shape=(2, 2))
             F = div(w)*p*dx - nu*inner(grad(w), tau)*dx - phi*div(u)*dx
         else:
-            F = div(w)*p*dx - nu*inner(grad(w), tau)*dx - phi*div(u)*dx + inner(z, tau)*dx - inner(z, sym(grad(u)))*dx
+            F = div(w)*p*dx - nu*inner(grad(w), tau)*dx - phi*div(u)*dx + inner(tau, tau)*inner(z, tau)*dx - inner(z, sym(grad(u)))*dx
             # should 'inner(z, tau)*dx' be 'A*inner(tau, tau)*inner(z, tau)*dx ?
 
     # boundary conditions
@@ -52,7 +52,7 @@ def ice_solve(n=n, L=L, Newtonian=False, pointsolve=False):
            DirichletBC(W.sub(0), Constant((1., 0.)), 2)]
 
     direct_solver = {
-        "ksp_type": "preonly",
+        "ksp_type": "preonly", 
         "pc_type": "lu",
         "mat_type": "aij",
         "pc_factor_mat_solver_type": "mumps"}
