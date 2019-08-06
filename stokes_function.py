@@ -2,7 +2,7 @@ from firedrake import *
 import matplotlib.pyplot as plt
 import numpy as np
 
-n = 16
+n = 32
 L = 1
 
 def ice_solve(n=n, L=L, Newtonian=False, pointsolve=False):
@@ -10,12 +10,11 @@ def ice_solve(n=n, L=L, Newtonian=False, pointsolve=False):
     
     # define the mesh
     mesh = PeriodicRectangleMesh(n, n, L, L, direction="x", quadrilateral=True)
-    #x, y = SpatialCoordinate(mesh)
     
     # function spaces
     V1 = VectorFunctionSpace(mesh, "CG", 2) # velocity
     V2 = FunctionSpace(mesh, "CG", 1) # pressure
-    V3 = TensorFunctionSpace(mesh, "DG", 0) # stress tensor
+    V3 = TensorFunctionSpace(mesh, "CG", 2) # stress tensor
 
     # mixed function space
     if pointsolve:
@@ -33,24 +32,16 @@ def ice_solve(n=n, L=L, Newtonian=False, pointsolve=False):
     
     nullspace = MixedVectorSpaceBasis(
         W, [W.sub(0), VectorSpaceBasis(constant=True), W.sub(2)])
-        
-    # Newtonian or not
-    if Newtonian: # tau = nu*grad(u)
-        F = div(w)*p*dx - nu*inner(grad(w), grad(u))*dx - phi*div(u)*dx + inner(z, tau)*dx - inner(z, grad(u))*dx
-        # should nu be in front of inner(z, grad(u))? 
-    else:
-        if pointsolve:
-            ps = point_solve(lambda x, y: inner(x,x)*x - y)
-            tau = ps(sym(grad(u)), function_space=V3, shape=(2, 2))
-            F = div(w)*p*dx - nu*inner(grad(w), tau)*dx - phi*div(u)*dx
-        else:
-            F = div(w)*p*dx - nu*inner(grad(w), tau)*dx - phi*div(u)*dx + inner(tau, tau)*inner(z, tau)*dx - inner(z, sym(grad(u)))*dx
-            # should 'inner(z, tau)*dx' be 'A*inner(tau, tau)*inner(z, tau)*dx ?
+
+    # solve for the Newtonian flow
+    # tau = nu*grad(u)
+    F = div(w)*p*dx - inner(grad(w), tau)*dx - phi*div(u)*dx + inner(z, tau)*dx - nu*inner(z, grad(u))*dx
 
     # boundary conditions
     bcs = [DirichletBC(W.sub(0), Constant((0., 0.)), 1),
            DirichletBC(W.sub(0), Constant((1., 0.)), 2)]
 
+    # solver parameters
     direct_solver = {
         "ksp_type": "preonly", 
         "pc_type": "lu",
@@ -60,9 +51,25 @@ def ice_solve(n=n, L=L, Newtonian=False, pointsolve=False):
     # solve
     solve(F==0, soln, bcs=bcs, nullspace=nullspace, solver_parameters=direct_solver)
 
-    u_out, p_out, tau_out = soln.split()
+    # Newtonian or not
+    if Newtonian:
+        u_l, p_l, tau_l = soln.split()
+        return u_l, p_l, tau_l
+    else:
+        if pointsolve:
+            ps = point_solve(lambda x, y: inner(x,x)*x - y)
+            tau = ps(sym(grad(u)), function_space=V3, shape=(2, 2))
+            F = div(w)*p*dx - nu*inner(grad(w), tau)*dx - phi*div(u)*dx
+        else:
+            # use the soln to linear problem as the initial guess
+            u, p, tau = split(soln)
+            A = Constant(15.)
+            F = div(w)*p*dx - inner(grad(w), tau)*dx - phi*div(u)*dx + inner(tau, tau)*inner(z, tau)*dx -1/A*inner(z, sym(grad(u)))*dx
+            solve(F==0, soln, bcs=bcs, nullspace=nullspace, solver_parameters=direct_solver)
     
-    return u_out, p_out, tau_out
+            u_out, p_out, tau_out = soln.split()
+    
+        return u_out, p_out, tau_out
 
 
 def velocity_profile(u, plotfig=True):
