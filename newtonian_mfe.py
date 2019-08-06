@@ -9,7 +9,7 @@ mesh = PeriodicRectangleMesh(n, n, L, L, direction="x", quadrilateral=True)
 
 V1 = VectorFunctionSpace(mesh, "CG", 2)
 V2 = FunctionSpace(mesh, "CG", 1)
-V3 = TensorFunctionSpace(mesh, "DG", 0)
+V3 = TensorFunctionSpace(mesh, "CG", 2) # replace DG,0 by CG, 2
 
 W = MixedFunctionSpace((V1, V2, V3))
 w, phi, z = TestFunctions(W)
