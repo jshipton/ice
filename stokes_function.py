@@ -2,10 +2,10 @@ from firedrake import *
 import matplotlib.pyplot as plt
 import numpy as np
 
-n = 32
+n = 16
 L = 1
 
-def ice_solve(n=n, L=L, Newtonian=False, pointsolve=False):
+def ice_solve(n=n, L=L, shear=1, Newtonian=False, pointsolve=False):
     """Solve the Stokes equation for Newtonian flow or the ice flow with or without point_solve"""
     
     # define the mesh
@@ -38,8 +38,9 @@ def ice_solve(n=n, L=L, Newtonian=False, pointsolve=False):
     F = div(w)*p*dx - inner(grad(w), tau)*dx - phi*div(u)*dx + inner(z, tau)*dx - nu*inner(z, grad(u))*dx
 
     # boundary conditions
+    upper_bc = Constant((shear, 0.))
     bcs = [DirichletBC(W.sub(0), Constant((0., 0.)), 1),
-           DirichletBC(W.sub(0), Constant((1., 0.)), 2)]
+           DirichletBC(W.sub(0), upper_bc, 2)]
 
     # solver parameters
     direct_solver = {
@@ -62,8 +63,8 @@ def ice_solve(n=n, L=L, Newtonian=False, pointsolve=False):
             F = div(w)*p*dx - nu*inner(grad(w), tau)*dx - phi*div(u)*dx
         else:
             # use the soln to linear problem as the initial guess
-            u, p, tau = split(soln)
-            A = Constant(15.)
+            # u, p, tau = split(soln)
+            A = Constant(1.)
             F = div(w)*p*dx - inner(grad(w), tau)*dx - phi*div(u)*dx + inner(tau, tau)*inner(z, tau)*dx -1/A*inner(z, sym(grad(u)))*dx
             solve(F==0, soln, bcs=bcs, nullspace=nullspace, solver_parameters=direct_solver)
     
@@ -86,3 +87,26 @@ def velocity_profile(u, plotfig=True):
         plt.plot(x, speed, '.')
 
     return speed
+
+
+
+def constitutive_law_plot():
+    """compute tau for the nonlinear case when varying the shear (upper boundary condition)"""
+    upper_bc = np.linspace(1, 82, 10)
+    tau_list = []
+    for s in upper_bc:
+        # compute tau
+        u_out, p_out, tau_out = ice_solve(shear=s, Newtonian=False) ## diverges when shear > 82
+        # find the square root of \int \tau \cdot \tau dx
+        tau_square = assemble(inner(tau_out, tau_out)*dx)
+        tau = np.sqrt(tau_square)
+        # update
+        tau_list.append(tau)
+
+    # make the plot
+    plt.plot(upper_bc, tau_list)
+
+    return upper_bc, np.array(tau_list)
+# plotting tau_list**3 (as y-axis) against upper_bc (as x-axis) gives a straight line through (0,0)
+# the gradient of the straight line depends on the value of constant A
+        
