@@ -1,11 +1,12 @@
 from firedrake import *
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 
 n = 16
 L = 1
 
-def ice_solve(n=n, L=L, shear=1, Newtonian=False, pointsolve=False):
+def ice_solve(n=n, L=L, shear=1, A=1., Newtonian=False, pointsolve=False):
     """Solve the Stokes equation for Newtonian flow or the ice flow with or without point_solve"""
     
     # define the mesh
@@ -64,7 +65,7 @@ def ice_solve(n=n, L=L, shear=1, Newtonian=False, pointsolve=False):
         else:
             # use the soln to linear problem as the initial guess
             # u, p, tau = split(soln)
-            A = Constant(1.)
+            A = Constant(A)
             F = div(w)*p*dx - inner(grad(w), tau)*dx - phi*div(u)*dx + inner(tau, tau)*inner(z, tau)*dx -1/A*inner(z, sym(grad(u)))*dx
             solve(F==0, soln, bcs=bcs, nullspace=nullspace, solver_parameters=direct_solver)
     
@@ -83,20 +84,22 @@ def velocity_profile(u, plotfig=True):
     speed = [np.linalg.norm(i) for i in u_eval]
 
     if plotfig:
-        # plot
+        plt.figure()
         plt.plot(x, speed, '.')
 
     return speed
 
 
 
-def constitutive_law_plot():
+def constitutive_law_plot(A=1., plotfig=True):
     """compute tau for the nonlinear case when varying the shear (upper boundary condition)"""
-    upper_bc = np.linspace(1, 82, 10)
+    upper_bc = np.linspace(1, 100, 10)
     tau_list = []
     for s in upper_bc:
         # compute tau
-        u_out, p_out, tau_out = ice_solve(shear=s, Newtonian=False) ## diverges when shear > 82
+        u_out, p_out, tau_out = ice_solve(shear=s, A=A, Newtonian=False)
+        ## above may diverge when shear is too large given constant A
+        ## for example, when A=15 and shear > 82
         # find the square root of \int \tau \cdot \tau dx
         tau_square = assemble(inner(tau_out, tau_out)*dx)
         tau = np.sqrt(tau_square)
@@ -104,9 +107,26 @@ def constitutive_law_plot():
         tau_list.append(tau)
 
     # make the plot
-    plt.plot(upper_bc, tau_list)
+    if plotfig:
+        plt.figure()
+        plt.plot(upper_bc, tau_list)
 
     return upper_bc, np.array(tau_list)
 # plotting tau_list**3 (as y-axis) against upper_bc (as x-axis) gives a straight line through (0,0)
 # the gradient of the straight line depends on the value of constant A
         
+
+# now investigate how the slope depends on the value of A
+def slope_relation(plotfig=True):
+    A = np.linspace(1, 10, 10)
+    slope_list = []
+    for a in A:
+        x, y = constitutive_law_plot(A=a, plotfig=False)
+        slo, inter, r, p, std = scipy.stats.linregress(x, y**3)
+        slope_list.append(slo)
+
+    if plotfig:
+        plt.figure()
+        plt.plot(A, slope_list)
+
+    return A, np.array(slope_list)
