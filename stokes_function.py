@@ -2,6 +2,7 @@ from firedrake import *
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy
+import scipy.stats
 
 n = 16
 L = 1
@@ -17,32 +18,10 @@ def ice_solve(n=n, L=L, shear=1, A=1., Newtonian=False, pointsolve=False):
     V2 = FunctionSpace(mesh, "CG", 1) # pressure
     V3 = TensorFunctionSpace(mesh, "CG", 2) # stress tensor
 
-    # mixed function space
-    if pointsolve:
-        W = MixedFunctionSpace((V1, V2))
-        w, phi = TestFunctions(W)
-        soln = Function(W)
-        u, p = split(soln)
-    else:
-        W = MixedFunctionSpace((V1, V2, V3))
-        w, phi, z = TestFunctions(W)
-        soln = Function(W)
-        u, p, tau = split(soln)
-
-    nu = Constant(1.)
-    
-    nullspace = MixedVectorSpaceBasis(
-        W, [W.sub(0), VectorSpaceBasis(constant=True), W.sub(2)])
-
-    # solve for the Newtonian flow
-    # tau = nu*grad(u)
-    F = div(w)*p*dx - inner(grad(w), tau)*dx - phi*div(u)*dx + inner(z, tau)*dx - nu*inner(z, grad(u))*dx
-
-    # boundary conditions
-    upper_bc = Constant((shear, 0.))
-    bcs = [DirichletBC(W.sub(0), Constant((0., 0.)), 1),
-           DirichletBC(W.sub(0), upper_bc, 2)]
-
+    # the constants
+    nu = Constant(1.) # viscosity coefficient for Newtonian flow
+    A = Constant(A) # temperature-dependent constant in Glen's flow law
+    upper_bc = Constant((shear, 0.)) # upper boundary condition
     # solver parameters
     direct_solver = {
         "ksp_type": "preonly", 
@@ -50,8 +29,39 @@ def ice_solve(n=n, L=L, shear=1, A=1., Newtonian=False, pointsolve=False):
         "mat_type": "aij",
         "pc_factor_mat_solver_type": "mumps"}
     
-    # solve
-    solve(F==0, soln, bcs=bcs, nullspace=nullspace, solver_parameters=direct_solver)
+    # mixed function space
+    if pointsolve:
+        W = MixedFunctionSpace((V1, V2))
+        w, phi = TestFunctions(W)
+        soln = Function(W)
+        u, p = split(soln)
+        
+        nullspace = MixedVectorSpaceBasis(
+            W, [W.sub(0), VectorSpaceBasis(constant=True)])
+
+        # boundary conditions
+        bcs = [DirichletBC(W.sub(0), Constant((0., 0.)), 1),
+               DirichletBC(W.sub(0), upper_bc, 2)]
+
+    else:
+        W = MixedFunctionSpace((V1, V2, V3))
+        w, phi, z = TestFunctions(W)
+        soln = Function(W)
+        u, p, tau = split(soln)
+
+        nullspace = MixedVectorSpaceBasis(
+            W, [W.sub(0), VectorSpaceBasis(constant=True), W.sub(2)])
+
+        # solve for the Newtonian flow
+        # tau = nu*grad(u)
+        F = div(w)*p*dx - inner(grad(w), tau)*dx - phi*div(u)*dx + inner(z, tau)*dx - nu*inner(z, grad(u))*dx
+
+        # boundary conditions
+        bcs = [DirichletBC(W.sub(0), Constant((0., 0.)), 1),
+               DirichletBC(W.sub(0), upper_bc, 2)]
+
+        # solve
+        solve(F==0, soln, bcs=bcs, nullspace=nullspace, solver_parameters=direct_solver)
 
     # Newtonian or not
     if Newtonian:
@@ -61,15 +71,14 @@ def ice_solve(n=n, L=L, shear=1, A=1., Newtonian=False, pointsolve=False):
         if pointsolve:
             ps = point_solve(lambda x, y: inner(x,x)*x - y)
             tau = ps(sym(grad(u)), function_space=V3, shape=(2, 2))
-            F = div(w)*p*dx - nu*inner(grad(w), tau)*dx - phi*div(u)*dx
+            F = div(w)*p*dx - inner(grad(w), tau)*dx - phi*div(u)*dx
+            
         else:
             # use the soln to linear problem as the initial guess
-            # u, p, tau = split(soln)
-            A = Constant(A)
             F = div(w)*p*dx - inner(grad(w), tau)*dx - phi*div(u)*dx + inner(tau, tau)*inner(z, tau)*dx -1/A*inner(z, sym(grad(u)))*dx
-            solve(F==0, soln, bcs=bcs, nullspace=nullspace, solver_parameters=direct_solver)
-    
-            u_out, p_out, tau_out = soln.split()
+
+        solve(F==0, soln, bcs=bcs, nullspace=nullspace, solver_parameters=direct_solver)
+        u_out, p_out, tau_out = soln.split()
     
         return u_out, p_out, tau_out
 
@@ -110,6 +119,8 @@ def constitutive_law_plot(A=1., plotfig=True):
     if plotfig:
         plt.figure()
         plt.plot(upper_bc, tau_list)
+        plt.xlabel("upper BC")
+        plt.ylabel("tau")
 
     return upper_bc, np.array(tau_list)
 # plotting tau_list**3 (as y-axis) against upper_bc (as x-axis) gives a straight line through (0,0)
@@ -128,5 +139,7 @@ def slope_relation(plotfig=True):
     if plotfig:
         plt.figure()
         plt.plot(A, slope_list)
+        plt.xlabel("A")
+        plt.ylabel("slope")
 
     return A, np.array(slope_list)
